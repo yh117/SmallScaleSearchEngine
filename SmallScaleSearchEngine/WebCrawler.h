@@ -16,15 +16,19 @@
 #include <set>
 #include <stack>
 #include <regex>
+#include <map>
 
 #include "Url.h"
 #include "printContainer.h"
+#include "Sql.h"
+
 
 class WebCrawler {
 private:
-    std::string root;
+    std::string inputUrl;
     std::string rootWithSlash;
     std::string robots;
+    std::string root;
     
     std::set<std::string> allowUrlReg;
     std::set<std::string> disallowUrlReg;
@@ -32,25 +36,38 @@ private:
     std::set<std::string> visitedUrls;
     std::stack<std::string> unvisitedUrls;
     
+    const int saveSize;
+    
+    
+    Sql db;
+    
     void addSlashForRoot() {
-        for (int i=0; i<root.size(); ++i) {
-            if (root[i] == '^' ||
-                root[i] == '$' ||
-                root[i] == '\\' ||
-                root[i] == '.' ||
-                root[i] == '*' ||
-                root[i] == '+' ||
-                root[i] == '?' ||
-                root[i] == '(' ||
-                root[i] == ')' ||
-                root[i] == '[' ||
-                root[i] == ']' ||
-                root[i] == '{' ||
-                root[i] == '}' ||
-                root[i] == '|') rootWithSlash += "\\";
-            rootWithSlash += root[i];
+        for (int i=0; i<inputUrl.size(); ++i) {
+            if (inputUrl[i] == '^' ||
+                inputUrl[i] == '$' ||
+                inputUrl[i] == '\\' ||
+                inputUrl[i] == '.' ||
+                inputUrl[i] == '*' ||
+                inputUrl[i] == '+' ||
+                inputUrl[i] == '?' ||
+                inputUrl[i] == '(' ||
+                inputUrl[i] == ')' ||
+                inputUrl[i] == '[' ||
+                inputUrl[i] == ']' ||
+                inputUrl[i] == '{' ||
+                inputUrl[i] == '}' ||
+                inputUrl[i] == '|') rootWithSlash += "\\";
+            rootWithSlash += inputUrl[i];
         }
-        if (root[root.size()-1] != '/') rootWithSlash += '/';
+        if (inputUrl[inputUrl.size()-1] != '/') {
+            inputUrl += '/';
+            rootWithSlash += '/';
+        }
+        
+        size_t slashPos = inputUrl.find("/", 7);
+        if (slashPos != inputUrl.npos) {
+            root = inputUrl.substr(0, slashPos+1);
+        }
     }
     
     std::string addSlashForMatch(const std::string & match) {
@@ -162,8 +179,18 @@ private:
         return true;
     }
     
+    void storeLinksInDB(const std::string & url, const std::set<std::string> & links) {
+        std::string query;
+        for (auto x:links) {
+            query += "INSERT INTO LINKS (URL, LINKURL) " \
+                    "VALUES ('" + url + "', '" + x + "' );" ;
+        }
+        db.executeSql(query.c_str());
+    }
+    
     void cralingHelper(Url & url) {
         const std::set<std::string> & links = url.getLinks();
+        std::set<std::string> validLinks;
         
         for (auto x:links) {
             std::string link = x;
@@ -172,50 +199,153 @@ private:
             // check if this link is disallowed by robots.txt
             if (linkChecker(link) == false) continue;
             
+            // add link into validLinks, validLinks will be stored in the database
+            validLinks.insert(link);
+            
             // if this link is unvisited, push it to unvisited link stack
             if (visitedUrls.find(link) == visitedUrls.end())
                 unvisitedUrls.push(link);
         }
         
-        
+        storeLinksInDB(url.getUrl(), validLinks);
     }
     
+    void createTables() const {
+        std::string createTableVisited = "CREATE TABLE VISITED(" \
+        "URL  TEXT PRIMARY KEY NOT NULL UNIQUE," \
+        "HTML TEXT );" ;
+        
+        std::string createTableUnvisited = "CREATE TABLE UNVISITED(" \
+        "URL TEXT PRIMARY KEY NOT NULL UNIQUE );" ;
+        
+        std::string creatTableLinks = "CREATE TABLE LINKS(" \
+        "URL TEXT NOT NULL," \
+        "LINKURL TEXT NOT NULL," \
+        "PRIMARY KEY(URL, LINKURL) );" ;
+        
+        db.executeSql(createTableVisited.c_str());
+        db.executeSql(createTableUnvisited.c_str());
+        db.executeSql(creatTableLinks.c_str());
+    }
+    
+    void loadDataFromDB() {
+        std::string query = "SELECT URL FROM VISITED";
+        db.executeSql(query.c_str(), Sql::callback);
+        for (int i=0; i<Sql::result.size(); ++i) {
+            visitedUrls.insert(Sql::result[i]);
+        }
+        Sql::result.clear();
+        
+        query = "SELECT URL FROM UNVISITED";
+        db.executeSql(query.c_str(), Sql::callback);
+        for (int i=0; i<Sql::result.size(); ++i) {
+            unvisitedUrls.push(Sql::result[i]);
+        }
+        Sql::result.clear();
+    }
+    
+    void dbInitialization() {
+        createTables();
+        loadDataFromDB();
+    }
+    
+    void replaceAll(std::string & str, const std::string& from, const std::string& to) {
+        if(from.empty())
+            return;
+        size_t start_pos = 0;
+        while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+            str.replace(start_pos, from.length(), to);
+            start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+        }
+    }
+    
+    void storeVisitedInDb(std::map<std::string, std::string> & temp) {
+        std::string query;
+        
+        for (auto it = temp.begin(); it!=temp.end(); ++it) {
+            replaceAll(it->second, "'", "''");
+            query += "INSERT INTO VISITED (URL, HTML) " \
+                     "VALUES ('" + it->first + "', '" + it->second + "' );" ;
+        }
+        db.executeSql(query.c_str());
+        temp.clear();
+    }
+    
+    std::set<std::string> getItemsInStack() {
+        std::set<std::string> stackItems;
+        while (! unvisitedUrls.empty()) {
+            stackItems.insert(unvisitedUrls.top());
+            unvisitedUrls.pop();
+        }
+        for (auto it = stackItems.rbegin(); it != stackItems.rend(); ++it) {
+            unvisitedUrls.push(*it);
+        }
+        
+        return stackItems;
+    }
+    
+    void storeUnvisitedInDb() {
+        std::string query = "DELETE FROM UNVISITED; ";
+        std::set<std::string> stackItems = getItemsInStack();
+        
+        for (auto it = stackItems.begin(); it != stackItems.end(); ++it) {
+            query += "INSERT INTO UNVISITED (URL) " \
+                     "VALUES ('" + *it + "' );" ;
+        }
+        
+        db.executeSql(query.c_str());
+    }
+    
+    void storeDataInDB(std::map<std::string, std::string> & temp) {
+        storeVisitedInDb(temp);
+        storeUnvisitedInDb();
+    }
+    
+    
 public:
-    WebCrawler(const std::string & _root) : root(_root) {
+    WebCrawler(const std::string & _inputUrl) : inputUrl(_inputUrl), db("ssse.db"), saveSize(20) {
         // surfix "hppt://" is required
         addSlashForRoot();
         getRobots();
         initDisallowUrlReg();
+    
+        dbInitialization();
         
-        unvisitedUrls.push(root);
+        unvisitedUrls.push(inputUrl);
     }
     
     void startCrawling() {
+        std::map<std::string, std::string> temp;
+        
         while (unvisitedUrls.empty() == false) {
             // get next url string in stack, initialize an Url object (after initializaion, the url is visited)
             std::string urlStr = unvisitedUrls.top();
-            Url url(urlStr);
             unvisitedUrls.pop();
-            
-            // add current url into visitedUrls set
-            visitedUrls.insert(urlStr);
+            Url url(urlStr);
             
             // if url is not a valid html format, continue to visit next url in stack
             if (url.isValidHTML() == false) continue;
+            
+            // add current url into visitedUrls set
+            auto insertSuccess = visitedUrls.insert(urlStr);
+            
+            if (insertSuccess.second == false) continue;
+                
+            temp.insert(std::pair<std::string, std::string>(urlStr, url.getHTML()));
             
             // check if the links in this page are allowed and visited
             // push valid and unvisited links into unvisited links stack
             cralingHelper(url);
             
-            if (visitedUrls.size() % 100 == 0)
-                print<std::set<std::string> >(visitedUrls);
+            if (temp.size() == saveSize) {
+                storeDataInDB(temp);
+                // print<std::set<std::string> >(visitedUrls);
+            }
             
         }
+        storeDataInDB(temp);
         
     }
-    
-    
-    
     
     
     
