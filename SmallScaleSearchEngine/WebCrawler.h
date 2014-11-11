@@ -9,6 +9,8 @@
 #ifndef __SmallScaleSearchEngine__WebCrawler__
 #define __SmallScaleSearchEngine__WebCrawler__
 
+#define __test_WebCrawler_
+
 #include <stdio.h>
 
 #include <iostream>
@@ -35,6 +37,8 @@ private:
     
     std::set<std::string> visitedUrls;
     std::stack<std::string> unvisitedUrls;
+    
+    std::set<std::pair<std::string, std::string> > allLinks;
     
     const int saveSize;
     
@@ -344,12 +348,24 @@ public:
             
         }
         storeDataInDB(temp);
-        
     }
     
+    const std::set<std::string> & getVisitedUrls() {
+        return visitedUrls;
+    }
     
-    
-    
+    const std::set<std::pair<std::string, std::string> > getLinks() {
+        std::string query = "SELECT * FROM LINKS;";
+        db.executeSql(query.c_str(), Sql::callback);
+        
+        assert(Sql::result.size() % 2 == 0);
+        
+        for (int i=0; i<Sql::result.size(); i=i+2) {
+            allLinks.insert(std::pair<std::string, std::string>(Sql::result[i], Sql::result[i+1]));
+        }
+        
+        return allLinks;
+    }
     
 };
 

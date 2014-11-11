@@ -49,21 +49,19 @@ private:
         // the url must be able to be visited
         assert(f != NULL);
         
-        // get html test from f
+        // get html text from f
         getHTMLHelper(f);
         
         pclose(f);
     }
     
     void findLinksFromHTML() {
-        // initialize the pattern to match "<a href="">"
-        std::regex pattern("<");
+        // initialize the pattern to match "<meta name="robots" content="noindex">"
+        std::regex pattern = std::regex("< *a[^>]+href *= *\" *([^#\"][^\" ]*)\"");
         
         // object that will contain the sequence of sub-matches
         std::smatch matches;
         
-        // initialize the pattern to match "<meta name="robots" content="noindex">"
-        pattern = std::regex("< *a[^>]+href *= *\" *([^#\"][^\" ]*)\"");
         while (std::regex_search(html, matches, pattern)) {
             html = matches.suffix().str();
             
