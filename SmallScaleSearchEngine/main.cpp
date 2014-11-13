@@ -6,50 +6,22 @@
 //  Copyright (c) 2014 Duke University. All rights reserved.
 //
 
-
-#include "WebCrawler.h"
-
-
 #include <unordered_map>
 #include <unordered_set>
-#include <algorithm>
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <fstream>
+#include <ios>
+#include <sstream>
+#include <iomanip>
+
+#include "WebCrawler.h"
+#include "ContainerMath.h"
+#include "Sql.h"
+#include "porter2_stemmer.h"
 
 
-double sum(const std::vector<double> & v) {
-    double ans = 0;
-    for (int i=0; i<v.size(); ++i) ans += v[i];
-    return ans;
-}
-
-double abs(const double & a) {
-    return a > 0 ? a : -a;
-}
-
-double absSum(const std::vector<double> & a) {
-    double sum;
-    for (int i=0; i<a.size(); ++i) sum += abs(a[i]);
-    return sum;
-}
-
-std::vector<double> & operator-(std::vector<double> & a, double b) {
-    for (int i=0; i<a.size(); ++i) a[i] -= b;
-    return a;
-}
-
-std::vector<double> & operator+(std::vector<double> & a, double b) {
-    for (int i=0; i<a.size(); ++i) a[i] += b;
-    return a;
-}
-
-std::vector<double> & operator-(std::vector<double> & a, const std::vector<double> & b) {
-    for (int i=0; i<a.size(); ++i) a[i] -= b[i];
-    return a;
-}
-
-std::vector<double> & operator+(std::vector<double> & a, const std::vector<double> & b) {
-    for (int i=0; i<a.size(); ++i) a[i] += b[i];
-    return a;
-}
 
 std::vector<double> pageRank(int N, const std::vector<int> & M, const std::unordered_map<int, std::unordered_set<int> > & linkFromMatrix) {
     // initialize the page rank of all urls as 1
@@ -82,35 +54,31 @@ std::vector<double> pageRank(int N, const std::vector<int> & M, const std::unord
     return pageRank;
 }
 
-int main(void) {
-    
-    WebCrawler wc("http://www.ece.duke.edu/");
-    
-    wc.startCrawling();
-    
-    // after crawling finished, get all the urls
-    auto urls = wc.getVisitedUrls();
-    auto links = wc.getLinks();
-    
-    // assigned an int index (from 0) to urls, store the <url, index> pair to unordered_map urlDict
-    std::unordered_map<std::string, int> urlDict;
-    std::unordered_map<int, std::string> indexDict;
+// initialize containers for PageRank calculation
+void pageRankInit(int N,
+                  const std::map<std::string, std::string> & urls,
+                  const std::set<std::pair<std::string, std::string> > & links,
+                  std::unordered_map<std::string, int> & urlDict,
+                  std::unordered_map<int, std::string> & indexDict,
+                  std::unordered_map<int, std::unordered_set<int> > & linkToMatrix,
+                  std::unordered_map<int, std::unordered_set<int> > & linkFromMatrix,
+                  std::vector<int> & M)
+{
     int i = 0;
     for (auto x : urls) {
-        urlDict.insert(std::pair<std::string, int>(x, i));
-        indexDict.insert(std::pair<int, std::string>(i, x));
+        urlDict.insert(std::pair<std::string, int>(x.first, i));
+        indexDict.insert(std::pair<int, std::string>(i, x.first));
         ++i;
     }
     
-    // for (auto x : urlDict) std::cout << x.second << ": " << x.first << std::endl;
     
-    // store links as ==> <index of url, a set of indexes of all links in that url> pair
-    std::unordered_map<int, std::unordered_set<int> > linkToMatrix, linkFromMatrix;
-    // initialize linkMatrix
-    for (int i=0; i<urls.size(); ++i) {
+    // initialize linkToMatrix, linkFromMatrix
+    for (int i=0; i<N; ++i) {
         linkToMatrix.insert(std::pair<int, std::unordered_set<int> >(i, std::unordered_set<int>()));
     }
     linkFromMatrix = linkToMatrix;
+    
+    // transform links into linkFromMatrix and linkToMatrix
     for (auto x : links) {
         if (urlDict.find(x.first) == urlDict.end() || urlDict.find(x.second) == urlDict.end()) continue;
         
@@ -118,17 +86,14 @@ int main(void) {
         linkFromMatrix[urlDict[x.second]].insert(urlDict[x.first]);
     }
     
-    // N is the size (number) of urls
-    int N = (int)linkToMatrix.size();
-    
-    std::vector<int> M(N);
     for (auto x : linkToMatrix) {
         M[x.first] = (int)x.second.size();
     }
-    
-    std::vector<double> pr = pageRank(N, M, linkFromMatrix);
-    
-    std::map<double, std::string> urlRank;
+}
+
+// print PageRank result from the most popular to the least popular
+void printPageRank(const std::vector<double> & pr, std::unordered_map<int, std::string> & indexDict) {
+    std::set<std::pair<double, std::string> > urlRank;
     
     for (int i=0; i<pr.size(); ++i) {
         urlRank.insert(std::pair<double, std::string>(pr[i], indexDict[i]));
@@ -137,6 +102,163 @@ int main(void) {
     for (auto it=urlRank.rbegin(); it!=urlRank.rend(); ++it) {
         std::cout << it->first << ": " << it->second << std::endl;
     }
+}
+
+template<typename T>
+void loadDataHelper(T & container, std::string tableName) {
+    std::string query = "SELECT * FROM " + tableName;
+    Sql db("ssse.db");
+    
+    db.executeSql(query.c_str(), Sql::callback);
+    
+    assert(Sql::result.size() % 2 == 0);
+    
+    for (int i=0; i<Sql::result.size(); i=i+2) {
+        container.insert(std::pair<std::string, std::string>(Sql::result[i], Sql::result[i+1]));
+    }
+    
+    Sql::result.clear();
+}
+
+void html2text(std::string & html) {
+    std::ofstream ofs("tmp.html", std::ios::out | std::ios::trunc);
+    ofs << html;
+    ofs.close();
+    
+    FILE * f = popen("/usr/local/bin/elinks -dump tmp.html", "r");
+    char * line = NULL;
+    size_t size;
+    html = "";
+    while(getline(&line, &size, f) != -1){
+        html += line;
+    }
+    free(line);
+    pclose(f);
+}
+
+void loadDataFromDB(std::map<std::string, std::string> & urls, std::set<std::pair<std::string, std::string> > & links) {
+    loadDataHelper<std::map<std::string, std::string> >(urls, "VISITED");
+    loadDataHelper<std::set<std::pair<std::string, std::string> > >(links, "LINKS");
+    
+    for (auto it = urls.begin(); it != urls.end(); ++it) {
+        html2text(it->second);
+    }
+}
+
+void stemHtml(std::map<std::string, std::string> &   urls,
+              std::unordered_map<int, std::string> & indexDict,
+              std::vector<std::string> &             stemmedUrls)
+{
+    for (int i=0; i<indexDict.size(); ++i) {
+        stemmedUrls[i] = urls[indexDict[i]];
+        Porter2Stemmer::stem(stemmedUrls[i]);
+    }
+}
+
+void replaceAll(std::string & str, const std::string& from, const std::string& to) {
+    if(from.empty())
+        return;
+    size_t start_pos = 0;
+    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
+
+template <typename T>
+std::string to_string_with_precision(const T a_value, const int n = 6) {
+    std::ostringstream out;
+    out << std::setprecision(n) << a_value;
+    return out.str();
+}
+
+void buildDatabase(int N,
+                   std::unordered_map<int, std::string> & indexDict,
+                   std::map<std::string, std::string> & urls,
+                   std::vector<std::string> & stemmedUrls,
+                   const std::vector<double> & pr,
+                   std::unordered_map<int, std::unordered_set<int> > & linkToMatrix)
+{                       // create table urls
+    Sql db("db.db");
+    std::string query = "CREATE TABLE URLS(" \
+                        "ID INTEGER PRIMARY KEY NOT NULL," \
+                        "URL TEXT NOT NULL UNIQUE," \
+                        "CONTENT TEXT NOT NULL," \
+                        "STEMMEDCONTENT TEXT NOT NULL," \
+                        "PAGERANK REAL NOT NULL );";
+                        // create table links
+    db.executeSql(query.c_str());
+    query             = "CREATE TABLE LINKS(" \
+                        "ID INTEGER NOT NULL," \
+                        "LINKID INTEGER NOT NULL," \
+                        "PRIMARY KEY(ID, LINKID) );";
+    db.executeSql(query.c_str());
+    
+    for (int i=0; i<N; ++i) {
+        
+        replaceAll(urls[indexDict[i]], "'", "''");
+        replaceAll(stemmedUrls[i], "'", "''");
+        query = "INSERT INTO URLS (ID, URL, CONTENT, STEMMEDCONTENT, PAGERANK) VALUES ( " + std::to_string(i) + ", '" + indexDict[i] + "', '" + urls[indexDict[i]] + "', '" + stemmedUrls[i] + "', " + to_string_with_precision(pr[i], 10) + " );";
+        db.executeSql(query.c_str());
+        
+        query = "";
+        for (auto y : linkToMatrix[i]) {
+            query += "INSERT INTO LINKS (ID, LINKID) VALUES (" + std::to_string(i) + ", " + std::to_string(y) + "); ";
+        }
+        db.executeSql(query.c_str());
+        
+    }
+}
+
+void postProcesser() {
+    // read database, get urls and links
+    std::map<std::string, std::string> urls;
+    std::set<std::pair<std::string, std::string> > links;
+    loadDataFromDB(urls, links);
+
+    // N is the size (number) of urls
+    int N = (int)urls.size();
+    
+    // assigned an int index (from 0) to urls, store the <url, index> pair to unordered_map urlDict
+    std::unordered_map<std::string, int> urlDict;
+    std::unordered_map<int, std::string> indexDict;
+    
+    // store links as linkToMatrix, linkFromMatrix
+    std::unordered_map<int, std::unordered_set<int> > linkToMatrix, linkFromMatrix;
+    
+    // variable M is the matrix M in page rank algorithm, M[i] = number of links from urls[i] to other urls
+    std::vector<int> M(N);
+    
+    // initialize variables for PageRank calculation
+    pageRankInit(N, urls, links, urlDict, indexDict, linkToMatrix, linkFromMatrix, M);
+
+    // pr[i] = pagerank result for urls[i]
+    std::vector<double> pr = pageRank(N, M, linkFromMatrix);
+    
+    // print PageRank result
+    printPageRank(pr, indexDict);
+    
+    // std::cout << urls[indexDict[0]] << std::endl;
+    
+    // stem html
+    std::vector<std::string> stemmedUrls(N);
+    stemHtml(urls, indexDict, stemmedUrls);
+    
+    // write PageRank result into database
+    buildDatabase(N, indexDict, urls, stemmedUrls, pr, linkToMatrix);
+    
+}
+
+void crawlerUrl(const std::string & url) {
+    WebCrawler wc(url);
+    wc.startCrawling();
+}
+
+int main(void) {
+    
+    // crawlerUrl("http://www.ece.duke.edu/");
+    
+    postProcesser();
     
     return EXIT_SUCCESS;
 }

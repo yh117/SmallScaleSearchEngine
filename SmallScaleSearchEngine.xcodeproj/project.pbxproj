@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		332AA88F1A12DEF3005F69EA /* ContainerMath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 332AA88D1A12DEF3005F69EA /* ContainerMath.cpp */; };
+		332AA8A91A12EEB4005F69EA /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 332AA8A61A12EEB4005F69EA /* main.cpp */; };
+		332AA8AA1A12EEB4005F69EA /* porter2_stemmer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 332AA8A71A12EEB4005F69EA /* porter2_stemmer.cpp */; };
 		334AF25C1A0E886800C35F32 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 334AF25B1A0E886800C35F32 /* libsqlite3.dylib */; };
 		334AF25F1A0E99EB00C35F32 /* Sql.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 334AF25D1A0E99EB00C35F32 /* Sql.cpp */; };
 		3370202D1A0B03CC006F1DFD /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3370202C1A0B03CC006F1DFD /* main.cpp */; };
@@ -28,6 +31,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		332AA88D1A12DEF3005F69EA /* ContainerMath.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ContainerMath.cpp; sourceTree = "<group>"; };
+		332AA88E1A12DEF3005F69EA /* ContainerMath.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ContainerMath.h; sourceTree = "<group>"; };
+		332AA8A61A12EEB4005F69EA /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = main.cpp; path = porter2_stemmer/main.cpp; sourceTree = "<group>"; };
+		332AA8A71A12EEB4005F69EA /* porter2_stemmer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = porter2_stemmer.cpp; path = porter2_stemmer/porter2_stemmer.cpp; sourceTree = "<group>"; };
+		332AA8A81A12EEB4005F69EA /* porter2_stemmer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = porter2_stemmer.h; path = porter2_stemmer/porter2_stemmer.h; sourceTree = "<group>"; };
 		334AF25B1A0E886800C35F32 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
 		334AF25D1A0E99EB00C35F32 /* Sql.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Sql.cpp; sourceTree = "<group>"; };
 		334AF25E1A0E99EB00C35F32 /* Sql.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Sql.h; sourceTree = "<group>"; };
@@ -53,11 +61,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		332AA8AB1A12EECD005F69EA /* porter2_stemmer */ = {
+			isa = PBXGroup;
+			children = (
+				332AA8A61A12EEB4005F69EA /* main.cpp */,
+				332AA8A71A12EEB4005F69EA /* porter2_stemmer.cpp */,
+				332AA8A81A12EEB4005F69EA /* porter2_stemmer.h */,
+			);
+			name = porter2_stemmer;
+			sourceTree = "<group>";
+		};
 		337020201A0B03CC006F1DFD = {
 			isa = PBXGroup;
 			children = (
 				334AF25B1A0E886800C35F32 /* libsqlite3.dylib */,
 				3370202B1A0B03CC006F1DFD /* SmallScaleSearchEngine */,
+				332AA8AB1A12EECD005F69EA /* porter2_stemmer */,
 				3370202A1A0B03CC006F1DFD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -82,6 +101,8 @@
 				33AFB8F11A0C20AA004BD195 /* Url.h */,
 				334AF25D1A0E99EB00C35F32 /* Sql.cpp */,
 				334AF25E1A0E99EB00C35F32 /* Sql.h */,
+				332AA88D1A12DEF3005F69EA /* ContainerMath.cpp */,
+				332AA88E1A12DEF3005F69EA /* ContainerMath.h */,
 			);
 			path = SmallScaleSearchEngine;
 			sourceTree = "<group>";
@@ -145,7 +166,10 @@
 				3370202D1A0B03CC006F1DFD /* main.cpp in Sources */,
 				33AFB8EF1A0C1FA2004BD195 /* WebCrawler.cpp in Sources */,
 				33AFB8F51A0C3485004BD195 /* printContainer.cpp in Sources */,
+				332AA88F1A12DEF3005F69EA /* ContainerMath.cpp in Sources */,
+				332AA8A91A12EEB4005F69EA /* main.cpp in Sources */,
 				33AFB8F21A0C20AA004BD195 /* Url.cpp in Sources */,
+				332AA8AA1A12EEB4005F69EA /* porter2_stemmer.cpp in Sources */,
 				334AF25F1A0E99EB00C35F32 /* Sql.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -38,9 +38,7 @@ private:
     std::set<std::string> visitedUrls;
     std::stack<std::string> unvisitedUrls;
     
-    std::set<std::pair<std::string, std::string> > allLinks;
-    
-    const int saveSize;
+    const int autoSaveSize;
     
     
     Sql db;
@@ -307,7 +305,7 @@ private:
     
     
 public:
-    WebCrawler(const std::string & _inputUrl) : inputUrl(_inputUrl), db("ssse.db"), saveSize(20) {
+    WebCrawler(const std::string & _inputUrl) : inputUrl(_inputUrl), db("ssse.db"), autoSaveSize(20) {
         // surfix "hppt://" is required
         addSlashForRoot();
         getRobots();
@@ -341,7 +339,7 @@ public:
             // push valid and unvisited links into unvisited links stack
             cralingHelper(url);
             
-            if (temp.size() == saveSize) {
+            if (temp.size() == autoSaveSize) {
                 storeDataInDB(temp);
                 // print<std::set<std::string> >(visitedUrls);
             }
@@ -352,19 +350,6 @@ public:
     
     const std::set<std::string> & getVisitedUrls() {
         return visitedUrls;
-    }
-    
-    const std::set<std::pair<std::string, std::string> > getLinks() {
-        std::string query = "SELECT * FROM LINKS;";
-        db.executeSql(query.c_str(), Sql::callback);
-        
-        assert(Sql::result.size() % 2 == 0);
-        
-        for (int i=0; i<Sql::result.size(); i=i+2) {
-            allLinks.insert(std::pair<std::string, std::string>(Sql::result[i], Sql::result[i+1]));
-        }
-        
-        return allLinks;
     }
     
 };
