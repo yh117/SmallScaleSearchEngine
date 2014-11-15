@@ -66,7 +66,7 @@ void Porter2Stemmer::stem(string & word) {
             ans += word[i];
         }
     }
-    std::cout << ans << std::endl;
+
     word = ans;
 }
 
